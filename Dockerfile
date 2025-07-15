@@ -1,3 +1,4 @@
+# (终极版 - 采用可执行文件替换策略)
 # 使用一个稳定的Ubuntu作为基础镜像
 FROM ubuntu:22.04
 
@@ -42,16 +43,16 @@ RUN mkdir -p /etc/apt/keyrings && \
     apt-get install -y google-chrome-stable --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
-# 4. **最终关键修正：修改Chrome的启动器文件**
-#    在所有 "Exec=" 行的末尾加上 --no-sandbox 和 --user-data-dir=/root/chrome-data
-RUN sed -i 's#^Exec=/usr/bin/google-chrome-stable#Exec=/usr/bin/google-chrome-stable --no-sandbox --user-data-dir=/root/chrome-data#g' /usr/share/applications/google-chrome.desktop
+# 4. **终极修正：替换Chrome的可执行文件**
+#    我们不再修改.desktop文件，而是用一个脚本来包装原始的Chrome。
+COPY chrome-launcher.sh /
+RUN mv /usr/bin/google-chrome-stable /usr/bin/google-chrome-stable.original && \
+    mv /chrome-launcher.sh /usr/bin/google-chrome-stable && \
+    chmod +x /usr/bin/google-chrome-stable
 
-# 5. 安装uBlock Origin插件 (无变化)
-ARG UBLOCK_ID=cjpalhdlnbpafiamejdnhcphjbkeiagm
-ARG UBLOCK_VERSION=1.58.0
-RUN mkdir -p /opt/google/chrome/extensions/ && \
-    wget -O /opt/google/chrome/extensions/ublock.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=98.0&x=id%3D${UBLOCK_ID}%26uc" && \
-    echo '{ "external_crx": "/opt/google/chrome/extensions/ublock.crx", "external_version": "'${UBLOCK_VERSION}'" }' > /opt/google/chrome/extensions/${UBLOCK_ID}.json
+# 5. 使用Chrome策略强制安装uBlock Origin (无变化)
+RUN mkdir -p /etc/opt/chrome/policies/managed
+RUN echo '{ "ExtensionInstallForcelist": [ "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx" ] }' > /etc/opt/chrome/policies/managed/ublock_origin.json
 
 # 6. 复制 Supervisor 配置文件和VNC启动脚本 (无变化)
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
